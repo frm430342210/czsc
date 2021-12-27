@@ -244,6 +244,7 @@ class CZSC:
         # 去除包含关系
         bars_ubi = self.bars_ubi
         for bar in last_bars:
+            # 两根K线（包含两根K线）无法处理包含关系，因为无法确认方向
             if len(bars_ubi) < 2:
                 bars_ubi.append(NewBar(symbol=bar.symbol, id=bar.id, freq=bar.freq, dt=bar.dt,
                                        open=bar.open, close=bar.close,
