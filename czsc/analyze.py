@@ -190,6 +190,7 @@ class CZSC:
             fx_a = fxs[0]
             fxs_a = [x for x in fxs if x.mark == fx_a.mark]
             for fx in fxs_a:
+                # 并不是最后一次性生成所有的笔，而是不断更新笔
                 if (fx_a.mark == Mark.D and fx.low <= fx_a.low) \
                         or (fx_a.mark == Mark.G and fx.high >= fx_a.high):
                     fx_a = fx
@@ -244,7 +245,7 @@ class CZSC:
         # 去除包含关系
         bars_ubi = self.bars_ubi
         for bar in last_bars:
-            # 两根K线（包含两根K线）无法处理包含关系，因为无法确认方向
+            # 两根K线（包含两根K线）无法处理包含关系，因为无法确认方向（从头开始，则没问题；若从中间开始，得处理包含关系）
             if len(bars_ubi) < 2:
                 bars_ubi.append(NewBar(symbol=bar.symbol, id=bar.id, freq=bar.freq, dt=bar.dt,
                                        open=bar.open, close=bar.close,
@@ -264,6 +265,7 @@ class CZSC:
         if self.bi_list:
             sdt = self.bi_list[0].fx_a.elements[0].dt
             s_index = 0
+            # self.bars_raw 用于保存未被处理的原始K线
             for i, bar in enumerate(self.bars_raw):
                 if bar.dt >= sdt:
                     s_index = i
