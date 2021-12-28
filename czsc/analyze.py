@@ -136,6 +136,7 @@ def check_bi(bars: List[NewBar], bi_min_len: int = 7):
                  or (fx_a.high < fx_b.high and fx_a.low > fx_b.low)
 
     if len(bars_a) >= bi_min_len and not ab_include:
+        # 从第一个分型即A分型，到B分型右侧的分型（如果右侧也是一个分型，否则，就是到B分型）
         fxs_ = [x for x in fxs if fx_a.elements[0].dt <= x.dt <= fx_b.elements[2].dt]
         bi = BI(symbol=fx_a.symbol, fx_a=fx_a, fx_b=fx_b, fxs=fxs_, direction=direction, bars=bars_a)
         return bi, bars_b

@@ -149,12 +149,14 @@ def kline_pro(kline: List[dict],
     k_data = [opts.CandleStickItem(name=i, value=[x['open'], x['close'], x['low'], x['high']])
               for i, x in enumerate(kline)]
 
+    # 成交量
     vol = []
     for i, row in enumerate(kline):
         item_style = red_item_style if row['close'] > row['open'] else green_item_style
         bar = opts.BarItem(name=i, value=row['vol'], itemstyle_opts=item_style, label_opts=label_not_show_opts)
         vol.append(bar)
 
+    # MACD
     close = np.array([x['close'] for x in kline], dtype=np.double)
     diff, dea, macd = MACD(close)
     macd_bar = []
@@ -211,7 +213,7 @@ def kline_pro(kline: List[dict],
         # chart_fx = Scatter()
         chart_fx = Line()
         chart_fx.add_xaxis(fx_dts)
-        chart_fx.add_yaxis(series_name="FX", y_axis=fx_val, is_selected=False,
+        chart_fx.add_yaxis(series_name="FX", y_axis=fx_val, is_selected=True,
                            symbol="circle", symbol_size=6, label_opts=label_not_show_opts,
                            itemstyle_opts=opts.ItemStyleOpts(color="rgba(152, 147, 193, 1.0)", ))
 

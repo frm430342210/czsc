@@ -37,20 +37,55 @@ def check_three_bi(bis: List[Union[BI, FakeBI]], freq: Freq, di: int = 1) -> Sig
 
     if bi3.direction == Direction.Down:
         # 向下不重合
+        #           .                                  .
+        #           . b3                                 . b3
+        #           .                                      .
+        #               . b2                       . b2
+        #                  .                .
+        #                   . b1             .b1
+        #                    .                .
         if bi3.low > bi1.high:
             return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向下不重合')
 
         # 向下奔走型
+        #                                    .
+        #
+        #                           .      .b2  .b3
+        #                             .b1         .
+        #                               .
+        #
         if bi2.low < bi3.low < bi1.high < bi2.high:
             return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向下奔走型')
 
         # 向下收敛
+        #                  .
+        #                             .
+        #                    .b1       .b3
+        #                               .
+        #                           .b2
+        #                       .
         if bi1.high > bi3.high and bi1.low < bi3.low:
             return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向下收敛')
 
+        #                           .
+        #
+        #             .
+        #               .b1
+        #                 .             .b3
+        #                         .b2
+        #                                 .
+        #
         if bi1.high < bi3.high and bi1.low > bi3.low:
             return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向下扩张')
 
+        #
+        #
+        #                  .
+        #                .b1                .
+        #              .        .b2       .b3
+        #
+        #                             .
+        #
         if bi3.low < bi1.low and bi3.high < bi1.high:
             if bi3.power < bi1.power:
                 return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向下盘背')
@@ -58,18 +93,56 @@ def check_three_bi(bis: List[Union[BI, FakeBI]], freq: Freq, di: int = 1) -> Sig
                 return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向下无背')
 
     if bi3.direction == Direction.Up:
+        #                          .
+        #                        .b1
+        #                      .
+        #                              .b2    .
+        #                                   .b3
+        #                                 .
+        #
         if bi3.high < bi1.low:
             return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向上不重合')
 
+        #
+        #              .
+        #
+        #           .b1  .b2
+        #                        .
+        #       .              .b3
+        #                    .
+        #
         if bi2.low < bi1.low < bi3.high < bi2.high:
             return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向上奔走型')
 
+        #
+        #     .
+        #                        .
+        #       .b1            .b3
+        #                    .
+        #               .b2
+        #          .
         if bi1.high > bi3.high and bi1.low < bi3.low:
             return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向上收敛')
 
+        #
+        #                    .
+        #       .
+        #      .b1
+        #     .            .b3
+        #              .b2
+        #                 .
+        #
         if bi1.high < bi3.high and bi1.low > bi3.low:
             return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向上扩张')
 
+        #
+        #
+        #                         .
+        #              b2       .b3
+        #        .     .      .
+        #      .b1
+        #    .
+        #
         if bi3.low > bi1.low and bi3.high > bi1.high:
             if bi3.power < bi1.power:
                 return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向上盘背')
