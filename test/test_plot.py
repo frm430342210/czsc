@@ -1,11 +1,12 @@
 # coding: utf-8
+import datetime
 import os
 import pandas as pd
 import random
 import unittest
 
 from czsc.utils import echarts_plot as plot
-from czsc.analyze import CZSC, RawBar
+from czsc.analyze import CZSC,NewBar
 from czsc.enum import Freq
 
 cur_path = os.path.split(os.path.realpath(__file__))[0]
@@ -26,7 +27,7 @@ class Test_PLOT(unittest.TestCase) :
     def test_kline_pro(self):
         file_kline = os.path.join(cur_path, "data/000001.SH_D.csv")
         kline = pd.read_csv(file_kline, encoding="utf-8")
-        bars = [RawBar(symbol=row['symbol'], id=i, freq=Freq.D, open=row['open'], dt=row['dt'],
+        bars = [NewBar(symbol=row['symbol'], id=i, freq=Freq.D, open=row['open'], dt=datetime.datetime.strptime(row['dt'], "%Y/%m/%d %H:%M"),#"%Y-%m-%d %H:%M:%S"),
                        close=row['close'], high=row['high'], low=row['low'], vol=row['vol'])
                 for i, row in kline.iterrows()]
         ka = CZSC(bars)

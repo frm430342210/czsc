@@ -11,11 +11,11 @@ from pyecharts.options import ComponentTitleOpts
 
 from .utils.kline_generator import KlineGenerator
 from .enum import Mark, Direction, Operate, Freq
-from .objects import BI, FakeBI, FX, RawBar, NewBar, Event, create_fake_bis
+from .objects import BI, FakeBI, FX, NewBar, Event, create_fake_bis
 from .utils.echarts_plot import kline_pro
 
 
-def remove_include(k1: NewBar, k2: NewBar, k3: RawBar):
+def remove_include(k1: NewBar, k2: NewBar, k3: NewBar):
     """去除包含关系：输入三根k线，其中k1和k2为没有包含关系的K线，k3为原始K线"""
     if k1.high < k2.high:
         direction = Direction.Up
@@ -23,7 +23,8 @@ def remove_include(k1: NewBar, k2: NewBar, k3: RawBar):
         direction = Direction.Down
     else:
         k4 = NewBar(symbol=k3.symbol, id=k3.id, freq=k3.freq, dt=k3.dt, open=k3.open,
-                    close=k3.close, high=k3.high, low=k3.low, vol=k3.vol, elements=[k3])
+                    close=k3.close, high=k3.high, low=k3.low, vol=k3.vol,
+                    elements=k3.elements if k3.elements else [k3])
         return False, k4
 
     # 判断 k2 和 k3 之间是否存在包含关系，有则处理
@@ -54,7 +55,8 @@ def remove_include(k1: NewBar, k2: NewBar, k3: RawBar):
         return True, k4
     else:
         k4 = NewBar(symbol=k3.symbol, id=k3.id, freq=k3.freq, dt=k3.dt, open=k3.open,
-                    close=k3.close, high=k3.high, low=k3.low, vol=k3.vol, elements=[k3])
+                    close=k3.close, high=k3.high, low=k3.low, vol=k3.vol,
+                    elements=k3.elements if k3.elements else [k3])
         return False, k4
 
 
@@ -146,7 +148,7 @@ def check_bi(bars: List[NewBar], bi_min_len: int = 7):
 
 class CZSC:
     def __init__(self,
-                 bars: List[RawBar],
+                 bars: List[NewBar],
                  max_bi_count: int = 50,
                  bi_min_len: int = 7,
                  get_signals: Callable = None,
@@ -209,6 +211,8 @@ class CZSC:
         min_low_ubi = min([x.low for x in bars_ubi[2:]])
         max_high_ubi = max([x.high for x in bars_ubi[2:]])
 
+        ### 原代码，开始
+        '''
         if last_bi.direction == Direction.Up and max_high_ubi > last_bi.high:
             bars_ubi_a = last_bi.bars + [x for x in bars_ubi if x.dt > last_bi.bars[-1].dt]
             self.bi_list.pop(-1)
@@ -219,28 +223,57 @@ class CZSC:
 
         else:
             bars_ubi_a = bars_ubi
+        '''
+        ### 原代码，结束
+
+        ### 修改后代码， 开始
+        if last_bi.direction == Direction.Up and max_high_ubi > last_bi.high:
+            bars_ubi_a = last_bi.bars + [x for x in bars_ubi if x.dt > last_bi.bars[-1].dt]
+            self.bi_list.pop(-1)
+            if self.bi_list:
+                # 倒数第二笔
+                last_bi = self.bi_list[-1]
+                if min_low_ubi < last_bi.low:
+                    bars_ubi_a = last_bi.bars + [x for x in bars_ubi_a if x.dt > last_bi.bars[-1].dt]
+                    self.bi_list.pop(-1)
+
+        elif last_bi.direction == Direction.Down and min_low_ubi < last_bi.low:
+            bars_ubi_a = last_bi.bars + [x for x in bars_ubi if x.dt > last_bi.bars[-1].dt]
+            self.bi_list.pop(-1)
+            if self.bi_list:
+                last_bi = self.bi_list[-1]
+                if min_low_ubi > last_bi.low:
+                    bars_ubi_a = last_bi.bars + [x for x in bars_ubi_a if x.dt > last_bi.bars[-1].dt]
+                    self.bi_list.pop(-1)
+        else:
+            bars_ubi_a = bars_ubi
+        ###修改后代码，结束
 
         if self.verbose and len(bars_ubi_a) > 300:
             print(f"{self.symbol} - {self.freq} - {bars_ubi_a[-1].dt} 未完成笔延伸超长，延伸数量: {len(bars_ubi_a)}")
 
-        bi, bars_ubi_ = check_bi(bars_ubi_a, self.bi_min_len)
-        self.bars_ubi = bars_ubi_
-        if isinstance(bi, BI):
-            self.bi_list.append(bi)
+        while True:
+            bi, bars_ubi_ = check_bi(bars_ubi_a, self.bi_min_len)
+            self.bars_ubi = bars_ubi_
+            if isinstance(bi, BI):
+                self.bi_list.append(bi)
+                bars_ubi_a = bars_ubi_
+            else:
+                break
 
-    def update(self, bar: RawBar):
+    def update(self, newBar: NewBar):
         """更新分析结果
 
         :param bar: 单根K线对象
         """
         # 更新K线序列
-        if not self.bars_raw or bar.dt != self.bars_raw[-1].dt:
-            self.bars_raw.append(bar)
-            last_bars = [bar]
+        if not self.bars_raw or newBar.dt != self.bars_raw[-1].dt:
+            self.bars_raw.append(newBar)
+            last_bars = [newBar]
         else:
-            self.bars_raw[-1] = bar
+            self.bars_raw[-1] = newBar
             last_bars = self.bars_ubi[-1].elements
-            last_bars[-1] = bar
+            last_bars[-1] = newBar
             self.bars_ubi.pop(-1)
 
         # 去除包含关系
@@ -252,12 +285,20 @@ class CZSC:
                                        open=bar.open, close=bar.close,
                                        high=bar.high, low=bar.low, vol=bar.vol, elements=[bar]))
             else:
-                k1, k2 = bars_ubi[-2:]
-                has_include, k3 = remove_include(k1, k2, bar)
-                if has_include:
-                    bars_ubi[-1] = k3
-                else:
-                    bars_ubi.append(k3)
+                has_include = True
+                while has_include:
+                    k1, k2 = bars_ubi[-2:]
+                    has_include, k3 = remove_include(k1, k2, bar)
+
+                    if has_include:
+                        if len(bars_ubi) > 2:
+                            bars_ubi.pop(-1)
+                            bar = k3
+                        else:
+                            bars_ubi[-1] = k3
+                            break
+                    else:
+                        bars_ubi.append(k3)
         self.bars_ubi = bars_ubi
 
         # 更新笔
@@ -463,7 +504,7 @@ class CzscTrader:
             else:
                 raise ValueError
 
-    def check_operate(self, bar: RawBar,
+    def check_operate(self, bar: NewBar,
                       stoploss: float = 0.1,
                       timeout: int = 1000,
                       wait_time: int = -1,

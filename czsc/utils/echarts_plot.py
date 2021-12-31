@@ -207,7 +207,7 @@ def kline_pro(kline: List[dict],
 
     # 缠论结果
     # ------------------------------------------------------------------------------------------------------------------
-    if fx:
+    if fx and 0:
         fx_dts = [x['dt'] for x in fx]
         fx_val = [x['fx'] for x in fx]
         # chart_fx = Scatter()

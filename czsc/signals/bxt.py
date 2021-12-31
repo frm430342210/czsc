@@ -61,19 +61,19 @@ def check_three_bi(bis: List[Union[BI, FakeBI]], freq: Freq, di: int = 1) -> Sig
         #                  .
         #                             .
         #                    .b1       .b3
-        #                               .
-        #                           .b2
+        #                          .b2  .
+        #
         #                       .
         if bi1.high > bi3.high and bi1.low < bi3.low:
             return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向下收敛')
 
         #                           .
         #
-        #             .
-        #               .b1
-        #                 .             .b3
-        #                         .b2
-        #                                 .
+        #             .        .b2
+        #               .b1           .b3
+        #                 .
+        #                              .
+        #
         #
         if bi1.high < bi3.high and bi1.low > bi3.low:
             return Signal(k1=freq.value, k2=di_name, k3='三笔形态', v1='向下扩张')
@@ -81,10 +81,10 @@ def check_three_bi(bis: List[Union[BI, FakeBI]], freq: Freq, di: int = 1) -> Sig
         #
         #
         #                  .
-        #                .b1                .
-        #              .        .b2       .b3
-        #
-        #                             .
+        #                .b1
+        #              .   .b2 .
+        #                       .b3
+        #                        .
         #
         if bi3.low < bi1.low and bi3.high < bi1.high:
             if bi3.power < bi1.power:
@@ -106,8 +106,8 @@ def check_three_bi(bis: List[Union[BI, FakeBI]], freq: Freq, di: int = 1) -> Sig
         #
         #              .
         #
-        #           .b1  .b2
-        #                        .
+        #           .b1
+        #                .b2     .
         #       .              .b3
         #                    .
         #
@@ -177,6 +177,14 @@ def check_five_bi(bis: List[Union[BI, FakeBI]], freq: Freq, di: int = 1) -> Sign
     assert direction in [Direction.Down, Direction.Up], "direction 的取值错误"
 
     if direction == Direction.Down:
+        #
+        #
+        #     .       .       .
+        #       .b1 .b2
+        #         .      .b3  .b4   .b5
+        #
+        #                    .           .
+        #
         # aAb式底背驰
         if min(bi2.high, bi4.high) > max(bi2.low, bi4.low) and max_high == bi1.high and bi5.power < bi1.power:
             if (min_low == bi3.low and bi5.low < bi1.low) or (min_low == bi5.low):
