@@ -178,6 +178,7 @@ def update_ubars(bars_ubi: List[NewBar], last_bars: List[NewBar]):
     return bars_ubi
 # 修改后代码， 结束
 
+
 class CZSC:
     def __init__(self,
                  bars: List[NewBar],
@@ -237,21 +238,49 @@ class CZSC:
             self.bars_ubi = bars_ubi_
             return
 
+        last_bi = self.bi_list[-1]
+
         # 如果上一笔被破坏，将上一笔的bars与bars_ubi进行合并
         min_low_ubi = min([x.low for x in bars_ubi[2:]])
         max_high_ubi = max([x.high for x in bars_ubi[2:]])
 
+        # 原代码，开始
+        '''
+        if last_bi.direction == Direction.Up and max_high_ubi > last_bi.high:
+            bars_ubi_a = last_bi.bars + [x for x in bars_ubi if x.dt > last_bi.bars[-1].dt]
+            self.bi_list.pop(-1)
+
+        elif last_bi.direction == Direction.Down and min_low_ubi < last_bi.low:
+            bars_ubi_a = last_bi.bars + [x for x in bars_ubi if x.dt > last_bi.bars[-1].dt]
+            self.bi_list.pop(-1)
+
+        else:
+            bars_ubi_a = bars_ubi
+        '''
+        # 原代码，结束
+
         # 修改后代码， 开始
-        while True:
-            last_bi = self.bi_list[-1]
-            if last_bi.direction == Direction.Up and max_high_ubi > last_bi.high or \
-                    last_bi.direction == Direction.Down and min_low_ubi < last_bi.low:
-                bars_ubi_a = last_bi.bars + [x for x in bars_ubi if x.dt > last_bi.bars[-1].dt]
-                self.bi_list.pop(-1)
-                bars_ubi = bars_ubi_a
-            else:
-                bars_ubi_a = bars_ubi
-                break
+        if last_bi.direction == Direction.Up and max_high_ubi > last_bi.high:
+            # 笔形成后，又出现包含关系，导致这里出现了有包含关系的ubi元组（9.29和9.30）
+            bars_ubi_a = last_bi.bars + [x for x in bars_ubi if x.dt > last_bi.bars[-1].dt]
+            self.bi_list.pop(-1)
+            if self.bi_list:
+                # 倒数第二笔
+                last_bi = self.bi_list[-1]
+                if min_low_ubi < last_bi.low:
+                    bars_ubi_a = last_bi.bars + [x for x in bars_ubi_a if x.dt > last_bi.bars[-1].dt]
+                    self.bi_list.pop(-1)
+
+        elif last_bi.direction == Direction.Down and min_low_ubi < last_bi.low:
+            bars_ubi_a = last_bi.bars + [x for x in bars_ubi if x.dt > last_bi.bars[-1].dt]
+            self.bi_list.pop(-1)
+            if self.bi_list:
+                last_bi = self.bi_list[-1]
+                if min_low_ubi > last_bi.low:
+                    bars_ubi_a = last_bi.bars + [x for x in bars_ubi_a if x.dt > last_bi.bars[-1].dt]
+                    self.bi_list.pop(-1)
+        else:
+            bars_ubi_a = bars_ubi
         # 修改后代码，结束
 
         if self.verbose and len(bars_ubi_a) > 300:
@@ -280,6 +309,34 @@ class CZSC:
             last_bars = self.bars_ubi[-1].elements
             last_bars[-1] = newBar
             self.bars_ubi.pop(-1)
+
+        # 原代码，开始
+        # 去除K线中的包含关系
+        '''
+        bars_ubi = self.bars_ubi
+        for bar in last_bars:
+            # 两根K线（包含两根K线）无法处理包含关系，因为无法确认方向（从头开始，则没问题；若从中间开始，得处理包含关系）
+            if len(bars_ubi) < 2:
+                bars_ubi.append(NewBar(symbol=bar.symbol, id=bar.id, freq=bar.freq, dt=bar.dt,
+                                       open=bar.open, close=bar.close,
+                                       high=bar.high, low=bar.low, vol=bar.vol, elements=[bar]))
+            else:
+                has_include = True
+                while has_include:
+                    k1, k2 = bars_ubi[-2:]
+                    has_include, k3 = remove_include(k1, k2, bar)
+
+                    if has_include:
+                        if len(bars_ubi) > 2:
+                            bars_ubi.pop(-1)
+                            bar = k3
+                        else:
+                            bars_ubi[-1] = k3
+                            break
+                    else:
+                        bars_ubi.append(k3)
+        '''
+        # 原代码，结束
 
         # 修改后代码， 开始
         # 笔中的K线去除包含关系
