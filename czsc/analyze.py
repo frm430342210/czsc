@@ -11,7 +11,7 @@ from pyecharts.options import ComponentTitleOpts
 
 from .utils.kline_generator import KlineGenerator
 from .enum import Mark, Direction, Operate, Freq
-from .objects import BI, FakeBI, FX, NewBar, Event, create_fake_bis
+from .objects import XD, BI, FakeBI, FX, NewBar, Event, create_fake_bis
 from .utils.echarts_plot import kline_pro
 
 
@@ -58,6 +58,42 @@ def remove_include(k1: NewBar, k2: NewBar, k3: NewBar):
                     close=k3.close, high=k3.high, low=k3.low, vol=k3.vol,
                     elements=k3.elements if k3.elements else [k3])
         return False, k4
+
+
+# 添加代码， 开始
+def update_ubars(bars_ubi: List[NewBar], last_bars: List[NewBar]):
+    """输入无包含关系的K线列表和新的K线列表，批量删除K线中的包含关系
+
+    :param bars_ubi: 无包含关系K线列表
+    :param last_bars: 新的K线列表
+    :return: bars_ubi
+    """
+    for bar in last_bars:
+        # 两根K线（包含两根K线）无法处理包含关系，因为无法确认方向（从头开始，则没问题；若从中间开始，得处理包含关系）
+        if len(bars_ubi) < 2:
+            bars_ubi.append(NewBar(symbol=bar.symbol, id=bar.id, freq=bar.freq, dt=bar.dt,
+                                   open=bar.open, close=bar.close,
+                                   high=bar.high, low=bar.low, vol=bar.vol, elements=[bar]))
+        else:
+            # 前面A和BK线没有包含关系，如果有C与B有包含关系，处理了B和C包含关系后，是否会跟A再有包含关系？（答案应该是没有的）
+            has_include = True
+            while has_include:
+                k1, k2 = bars_ubi[-2:]
+                has_include, k3 = remove_include(k1, k2, bar)
+
+                if has_include:
+                    if len(bars_ubi) > 2:
+                        bars_ubi.pop(-1)
+                        bar = k3
+                    else:
+                        bars_ubi[-1] = k3
+                        break
+                else:
+                    bars_ubi.append(k3)
+    return bars_ubi
+
+
+# 添加代码， 结束
 
 
 def check_fx(k1: NewBar, k2: NewBar, k3: NewBar):
@@ -146,37 +182,53 @@ def check_bi(bars: List[NewBar], bi_min_len: int = 7):
         return None, bars
 
 
-# 修改后代码， 开始
-def update_ubars(bars_ubi: List[NewBar], last_bars: List[NewBar]):
-    """输入无包含关系的K线列表和新的K线列表，批量删除K线中的包含关系
+def check_xd(bi_list: List[BI]):
+    """输入一串笔列表，生成线段
 
-    :param bars_ubi: 无包含关系K线列表
-    :param last_bars: 新的K线列表
-    :return: bars_ubi
+    :param bi_list: 笔列表
+    :return:
     """
-    for bar in last_bars:
-        # 两根K线（包含两根K线）无法处理包含关系，因为无法确认方向（从头开始，则没问题；若从中间开始，得处理包含关系）
-        if len(bars_ubi) < 2:
-            bars_ubi.append(NewBar(symbol=bar.symbol, id=bar.id, freq=bar.freq, dt=bar.dt,
-                                   open=bar.open, close=bar.close,
-                                   high=bar.high, low=bar.low, vol=bar.vol, elements=[bar]))
-        else:
-            has_include = True
-            while has_include:
-                k1, k2 = bars_ubi[-2:]
-                has_include, k3 = remove_include(k1, k2, bar)
+    if len(bi_list) < 3:
+        return None, bi_list
 
-                if has_include:
-                    if len(bars_ubi) > 2:
-                        bars_ubi.pop(-1)
-                        bar = k3
-                    else:
-                        bars_ubi[-1] = k3
-                        break
-                else:
-                    bars_ubi.append(k3)
-    return bars_ubi
-# 修改后代码， 结束
+    bi_a = bi_list[0]
+    try:
+        if bi_list[0].direction == Direction.Up:
+            if bi_list[0].high < bi_list[2].low:
+                return None, bi_list
+            direction = Direction.Up
+            bis_b = [bi for bi in bi_list if bi.direction == Direction.UP and
+                     bi.fx_a.dt > bi_a.fx_b.dt and bi.high > bi_a.high]
+            if not bis_b:
+                return None, bi_list
+
+            bi_b = bis_b[-1]
+
+        elif bi_list[0].direction == Direction.Down:
+            if bi_list[0].high > bi_list[2].low:
+                return None, bi_list
+            direction = Direction.Down
+            bis_b = [bi for bi in bi_list if bi.direction == Direction.Down and
+                     bi.fx_a.dt > bi_a.fx_b.dt and bi.low < bi_a.low]
+            if not bis_b:
+                return None, bi_list
+
+            bi_b = bis_b[-1]
+        else:
+            raise ValueError
+    except:
+        traceback.print_exc()
+        return None, bi_list
+
+    bis_a = [bi for bi in bi_list if bi.fx_a.dt >= bi_a.fx_a.dt and bi.fx_b.dt <= bi_b.fx_b.dt]
+    bis_b = [bi for bi in bi_list if bi.fx_a.dt >= bi_b.fx_b.dt]
+
+    if bis_a:
+        xd = XD(symbol=bi_a.symbol, bi_a=bi_a, bi_b=bi_b, bis=bis_a, direction=direction)
+        return xd, bis_b
+
+    return None, bi_list
+
 
 class CZSC:
     def __init__(self,
@@ -199,6 +251,7 @@ class CZSC:
         self.bars_raw = []  # 原始K线序列
         self.bars_ubi = []  # 未完成笔的无包含K线序列
         self.bi_list: List[BI] = []
+        self.xd_list: List[XD] = []
         self.symbol = bars[0].symbol
         self.freq = bars[0].freq
         self.get_signals = get_signals
@@ -265,6 +318,20 @@ class CZSC:
                 bars_ubi_a = bars_ubi_
             else:
                 break
+
+    def __update_xd(self):
+        bi_list = self.bi_list
+        if len(bi_list) < 3:
+            return
+
+        # 查找笔
+        if not self.xd_list:
+            # 第一个线段的查找
+            fxs = check_xd(bi_list)
+            if not fxs:
+                return
+            return
+        return
 
     def update(self, newBar: NewBar):
         """更新分析结果

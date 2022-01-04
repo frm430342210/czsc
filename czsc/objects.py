@@ -120,8 +120,8 @@ class BI:
     fx_a: FX = None     # 笔开始的分型
     fx_b: FX = None     # 笔结束的分型
     fxs: List = None    # 笔内部的分型列表
-    direction: Direction = None
-    bars: List[NewBar] = None
+    direction: Direction = None  # 笔的方向
+    bars: List[NewBar] = None  # 去除包含关系的K线
 
     def __post_init__(self):
         self.sdt = self.fx_a.dt
@@ -163,6 +163,40 @@ class BI:
     def change(self):
         """笔的涨跌幅"""
         c = round((self.fx_b.fx - self.fx_a.fx) / self.fx_a.fx, 4)
+        return c
+
+    @property
+    def length(self):
+        """笔的无包含关系K线数量"""
+        return len(self.bars)
+
+    @property
+    def rsq(self):
+        close = [x.close for x in self.raw_bars]
+        return round(RSQ(close), 4)
+
+    @property
+    def raw_bars(self):
+        """构成笔的原始K线序列"""
+        x = []
+        for bar in self.bars[1:-1]:
+            x.extend(bar.raw_bars)
+        return x
+
+
+@dataclass
+class XD:
+    symbol: str
+    bi_a: BI = None     # 线段开始的笔
+    bi_b: BI = None     # 线段结束的笔
+    bis: List = None    # 线段内部的笔列表
+    direction: Direction = None  # 线段的方向
+    bars: List[NewBar] = None  # 去除包含关系的K线
+
+    @property
+    def change(self):
+        """线段的涨跌幅"""
+        c = round((self.bi_b.fx_b.fx - self.bi_a.fx_a.fx) / self.bi_a.fx_a.fx, 4)
         return c
 
     @property
