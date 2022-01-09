@@ -242,7 +242,7 @@ class CZSC:
         max_high_ubi = max([x.high for x in bars_ubi[2:]])
 
         # 修改后代码， 开始
-        while True:
+        while self.bi_list:
             last_bi = self.bi_list[-1]
             if last_bi.direction == Direction.Up and max_high_ubi > last_bi.high or \
                     last_bi.direction == Direction.Down and min_low_ubi < last_bi.low:
@@ -283,7 +283,7 @@ class CZSC:
 
         # 修改后代码， 开始
         # 笔中的K线去除包含关系
-        if self.bi_list and self.bi_list[-1].bars[-1].dt == self.bars_ubi[-1].dt:
+        if self.bi_list and self.bars_ubi and self.bi_list[-1].bars[-1].dt == self.bars_ubi[-1].dt:
             self.bi_list[-1].bars = update_ubars(self.bi_list[-1].bars, last_bars)
 
         # 去除K线中的包含关系
