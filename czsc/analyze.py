@@ -182,9 +182,10 @@ def check_bi(bars: List[NewBar], bi_min_len: int = 7):
         return None, bars
 
 
-def check_xd(bi_list: List[BI]):
+def check_xd(bars: List[NewBar], bi_list: List[BI]):
     """输入一串笔列表，生成线段
 
+    :param bars: 无包含关系K线列表
     :param bi_list: 笔列表
     :return:
     """
@@ -197,7 +198,7 @@ def check_xd(bi_list: List[BI]):
             if bi_list[0].high < bi_list[2].low:
                 return None, bi_list
             direction = Direction.Up
-            bis_b = [bi for bi in bi_list if bi.direction == Direction.UP and
+            bis_b = [bi for bi in bi_list if bi.direction == Direction.Up and
                      bi.fx_a.dt > bi_a.fx_b.dt and bi.high > bi_a.high]
             if not bis_b:
                 return None, bi_list
@@ -224,7 +225,8 @@ def check_xd(bi_list: List[BI]):
     bis_b = [bi for bi in bi_list if bi.fx_a.dt >= bi_b.fx_b.dt]
 
     if bis_a:
-        xd = XD(symbol=bi_a.symbol, bi_a=bi_a, bi_b=bi_b, bis=bis_a, direction=direction)
+        bars_a = [x for x in bars if bi_a.fx_a.elements[0].dt <= x.dt <= bi_b.fx_b.elements[2].dt]
+        xd = XD(symbol=bi_a.symbol, bi_a=bi_a, bi_b=bi_b, bis=bis_a, direction=direction, bars=bars_a)
         return xd, bis_b
 
     return None, bi_list
@@ -265,15 +267,17 @@ class CZSC:
 
     def __update_bi(self):
         bars_ubi = self.bars_ubi
+        bi_list = self.bi_list
+
         if len(bars_ubi) < 3:
-            return
+            return bi_list, bars_ubi
 
         # 查找笔
-        if not self.bi_list:
+        if not bi_list:
             # 第一个笔的查找
             fxs = check_fxs(bars_ubi)
             if not fxs:
-                return
+                return bi_list, bars_ubi
 
             fx_a = fxs[0]
             fxs_a = [x for x in fxs if x.mark == fx_a.mark]
@@ -286,21 +290,22 @@ class CZSC:
 
             bi, bars_ubi_ = check_bi(bars_ubi)
             if isinstance(bi, BI):
-                self.bi_list.append(bi)
-            self.bars_ubi = bars_ubi_
-            return
+                bi_list.append(bi)
+            # self.bars_ubi = bars_ubi_
+            return bi_list, bars_ubi
 
         # 如果上一笔被破坏，将上一笔的bars与bars_ubi进行合并
         min_low_ubi = min([x.low for x in bars_ubi[2:]])
         max_high_ubi = max([x.high for x in bars_ubi[2:]])
 
         # 修改后代码， 开始
-        while True:
-            last_bi = self.bi_list[-1]
+        bars_ubi_a = None
+        while bi_list:
+            last_bi = bi_list[-1]
             if last_bi.direction == Direction.Up and max_high_ubi > last_bi.high or \
                     last_bi.direction == Direction.Down and min_low_ubi < last_bi.low:
                 bars_ubi_a = last_bi.bars + [x for x in bars_ubi if x.dt > last_bi.bars[-1].dt]
-                self.bi_list.pop(-1)
+                bi_list.pop(-1)
                 bars_ubi = bars_ubi_a
             else:
                 bars_ubi_a = bars_ubi
@@ -312,26 +317,56 @@ class CZSC:
 
         while True:
             bi, bars_ubi_ = check_bi(bars_ubi_a, self.bi_min_len)
-            self.bars_ubi = bars_ubi_
+            # self.bars_ubi = bars_ubi_
             if isinstance(bi, BI):
-                self.bi_list.append(bi)
+                bi_list.append(bi)
                 bars_ubi_a = bars_ubi_
             else:
                 break
+        return bi_list, bars_ubi_a
 
     def __update_xd(self):
+        bars_ubi = self.bars_ubi
         bi_list = self.bi_list
+        xd_list = self.xd_list
+
+        if len(bars_ubi) < 3:
+            return xd_list, bi_list
+
         if len(bi_list) < 3:
-            return
+            return xd_list, bi_list
 
         # 查找笔
-        if not self.xd_list:
+        if not xd_list:
             # 第一个线段的查找
-            fxs = check_xd(bi_list)
-            if not fxs:
-                return
-            return
-        return
+            fxd, bi_list = check_xd(bars_ubi, bi_list)
+            if isinstance(fxd, XD):
+                xd_list.append(fxd)
+            return xd_list, bi_list
+
+        # 如果上一笔被破坏，将上一笔的bars与bars_ubi进行合并
+        min_low_uxd = min([x.low for x in bars_ubi[2:]])
+        max_high_uxd = max([x.high for x in bars_ubi[2:]])
+
+        bis_a = None
+        bars = []
+        while xd_list:
+            last_xd = xd_list[-1]
+            if last_xd.direction == Direction.Up and max_high_uxd > last_xd.bi_b.high or \
+                    last_xd.direction == Direction.Down and min_low_uxd < last_xd.bi_b.low:
+                bis_a = last_xd.bis + [x for x in bi_list if x.fx_a.dt > last_xd.bi_b.fx_b.dt]
+                # for bi_ in bis_a:
+                #     bars = bars +
+                xd_list.pop(-1)
+                bi_list = bis_a
+            else:
+                bis_a = bi_list
+                break
+
+        fxd, bi_list = check_xd(bars, bis_a)
+        if isinstance(fxd, XD):
+            xd_list.append(fxd)
+        return xd_list, bi_list
 
     def update(self, newBar: NewBar):
         """更新分析结果
@@ -350,7 +385,7 @@ class CZSC:
 
         # 修改后代码， 开始
         # 笔中的K线去除包含关系
-        if self.bi_list and self.bi_list[-1].bars[-1].dt == self.bars_ubi[-1].dt:
+        if self.bi_list and self.bars_ubi and self.bi_list[-1].bars[-1].dt == self.bars_ubi[-1].dt:
             self.bi_list[-1].bars = update_ubars(self.bi_list[-1].bars, last_bars)
 
         # 去除K线中的包含关系
@@ -358,7 +393,14 @@ class CZSC:
         # 修改后代码， 结束
 
         # 更新笔
-        self.__update_bi()
+        self.bi_list, bars_n_ubi = self.__update_bi()
+
+        # 更新线段
+        self.xd_list, self.bi_list = self.__update_xd()
+
+        # 更新无包含K线列表
+        self.bars_ubi = bars_n_ubi
+
         self.bi_list = self.bi_list[-self.max_bi_count:]
         if self.bi_list:
             sdt = self.bi_list[0].fx_a.elements[0].dt
@@ -377,16 +419,43 @@ class CZSC:
 
     def to_echarts(self, width: str = "1400px", height: str = '580px'):
         kline = [x.__dict__ for x in self.bars_raw]
-        if len(self.bi_list) > 0:
-            bi = [{'dt': x.fx_a.dt, "bi": x.fx_a.fx} for x in self.bi_list] + \
-                 [{'dt': self.bi_list[-1].fx_b.dt, "bi": self.bi_list[-1].fx_b.fx}]
-            fx = []
-            for bi_ in self.bi_list:
-                fx.extend([{'dt': x.dt, "fx": x.fx} for x in bi_.fxs[1:]])
+        # if len(self.bi_list) > 0:
+        #     bi = [{'dt': x.fx_a.dt, "bi": x.fx_a.fx} for x in self.bi_list] + \
+        #          [{'dt': self.bi_list[-1].fx_b.dt, "bi": self.bi_list[-1].fx_b.fx}]
+        #     fx = []
+        #     for bi_ in self.bi_list:
+        #         fx.extend([{'dt': x.dt, "fx": x.fx} for x in bi_.fxs[1:]])
+
+        fxs = check_fxs(self.bars_ubi)
+        fx = []
+        bi = []
+        xd = []
+
+        if len(fxs) > 0 or len(self.bi_list) > 0 or len(self.xd_list) > 0:
+            if len(self.bi_list) > 0 or len(self.xd_list) > 0:
+
+                if len(self.xd_list) > 0:
+                    xd = [{'dt': x.bi_a.fx_a.dt, 'xd': x.bi_a.fx_a.fx} for x in self.xd_list] + \
+                         [{'dt': self.xd_list[-1].bi_b.fx_b.dt, 'xd': self.xd_list[-1].bi_b.fx_b.fx}]
+
+                    for xd_ in self.xd_list:
+                        bi = bi + [{'dt': x.fx_a.dt, "bi": x.fx_a.fx} for x in xd_.bis] + \
+                                 [{'dt': xd_.bis[-1].fx_b.dt, "bi": xd_.bis[-1].fx_b.fx}]
+                        for bi_ in xd_.bis:
+                            fx.extend([{'dt': x.dt, "fx": x.fx} for x in bi_.fxs[1:]])
+
+                bi = bi + [{'dt': x.fx_a.dt, "bi": x.fx_a.fx} for x in self.bi_list] + \
+                     [{'dt': self.bi_list[-1].fx_b.dt, "bi": self.bi_list[-1].fx_b.fx}]
+
+                for bi_ in self.bi_list:
+                    fx.extend([{'dt': x.dt, "fx": x.fx} for x in bi_.fxs[1:]])
+
+            fx.extend([{'dt': x.dt, "fx": x.fx} for x in fxs])
+
         else:
             bi = None
             fx = None
-        chart = kline_pro(kline, bi=bi, fx=fx, width=width, height=height,
+        chart = kline_pro(kline, fx=fx, bi=bi, xd=xd, width=width, height=height,
                           title="{}-{}".format(self.symbol, self.freq.value))
         return chart
 

@@ -220,7 +220,7 @@ def kline_pro(kline: List[dict],
         chart_fx.set_global_opts(xaxis_opts=grid0_xaxis_opts, legend_opts=legend_not_show_opts)
         chart_k = chart_k.overlap(chart_fx)
 
-    if bi:
+    if bi and 0:
         bi_dts = [x['dt'] for x in bi]
         bi_val = [x['bi'] for x in bi]
         chart_bi = Line()
